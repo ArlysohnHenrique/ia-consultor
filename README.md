@@ -83,11 +83,6 @@ Para encerrar o servidor, pressione Ctrl+C.
 O filtro de ingredientes consulta apenas os nomes cadastrados.
 Ele não verifica alergênicos nem contaminação cruzada.
 
-## Próximos passos
-
-- Integrar um LLM para interpretar perguntas em linguagem natural.
-- Validar os filtros extraídos pelo modelo.
-- Avaliar a qualidade das respostas.
 
 ## Consulta com inteligência artificial
 
