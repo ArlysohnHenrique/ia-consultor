@@ -1,3 +1,18 @@
+# Assistente de Cardápio com IA
+
+API em Python que transforma perguntas em linguagem natural em
+filtros para consultar um cardápio fictício. Integra Gemini, valida
+respostas com Pydantic e realiza a busca com regras determinísticas
+em Python.
+
+Exemplo: “Quero algo vegetariano até 35 reais, sem queijo.”
+
+Projeto pessoal desenvolvido para estudar engenharia de software
+e integração de modelos de linguagem.
+
+
+
+
 ## Demonstração
 
 Vídeo ilustrado do fluxo de consulta, com exemplo de interpretação
@@ -26,7 +41,14 @@ preço, preferência vegetariana e ingrediente que se deseja evitar.
 
 ## Tecnologias
 
-Python, FastAPI, Uvicorn e unittest.
+- Python: lógica da aplicação e integração dos componentes.
+- FastAPI: API HTTP e documentação interativa.
+- Gemini 3.1 Flash-Lite: interpretação de perguntas em linguagem natural.
+- Pydantic: definição e validação dos filtros.
+- Uvicorn: servidor da aplicação.
+- unittest e unittest.mock: testes automatizados com simulação da IA.
+- Git e GitHub: controle de versões e publicação do código.
+
 
 ## Como executar
 
@@ -73,10 +95,16 @@ Para encerrar o servidor, pressione Ctrl+C.
 ## Organização
 
 - `dados.py`: catálogo fictício de pratos.
-- `filtros.py`: regras de busca.
-- `main.py`: interação pelo terminal.
-- `api.py`: rotas HTTP.
-- `test_filtros.py`: testes dos filtros.
+- `filtros.py`: regras de busca por preço, preferência e ingrediente.
+- `main.py`: consulta por filtros pelo terminal.
+- `interpretador.py`: integração com Gemini e validação dos filtros.
+- `api.py`: rotas de consulta por filtros e linguagem natural.
+- `test_filtros.py`: testes das regras de busca.
+- `test_api.py`: testes da rota de IA com respostas simuladas.
+- `avaliar_ia.py`: avaliação da interpretação com chamadas reais ao Gemini.
+- `.env.example`: exemplo de configuração, sem credenciais.
+- `requirements.txt`: dependências do projeto.
+
 
 ## Limitações
 
