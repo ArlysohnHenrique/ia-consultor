@@ -108,3 +108,29 @@ POST /consultar
 - Não possui um filtro específico para pratos veganos.
 - Depende da disponibilidade da API externa.
 - A validação estrutural não garante que a interpretação esteja correta.
+
+## Avaliação da interpretação com IA
+
+Foi realizada uma avaliação inicial com cinco perguntas e filtros
+esperados definidos previamente.
+
+- Modelo: `gemini-3.1-flash-lite`
+- Data: 06/11/2026
+- Correspondência completa dos filtros: 5/5 casos
+- Erros de execução: 0
+
+Os casos incluem preço máximo, preferência vegetariana, exclusão
+de ingrediente e consultas sem limite de preço.
+
+Esse resultado representa uma execução de um conjunto pequeno.
+Não garante o mesmo desempenho em outras perguntas ou execuções.
+
+Para executar novamente:
+
+```powershell
+python avaliar_ia.py
+```
+
+A avaliação faz cinco chamadas reais à API e consome sua cota.
+Os testes automatizados com `unittest` usam respostas simuladas
+na rota de IA.
