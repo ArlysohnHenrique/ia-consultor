@@ -1,3 +1,15 @@
+## Demonstração
+
+Vídeo ilustrado do fluxo de consulta, com exemplo de interpretação
+dos filtros, resultado da busca e verificações do projeto.
+
+
+https://github.com/user-attachments/assets/5daa361d-08a9-4f0f-9101-36f812e1763d
+
+
+
+
+
 # Assistente de Cardápio
 
 Projeto de estudo em Python para consultar um cardápio fictício por
