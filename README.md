@@ -76,3 +76,35 @@ Ele não verifica alergênicos nem contaminação cruzada.
 - Integrar um LLM para interpretar perguntas em linguagem natural.
 - Validar os filtros extraídos pelo modelo.
 - Avaliar a qualidade das respostas.
+
+## Consulta com inteligência artificial
+
+A rota `POST /consultar` usa o Gemini para transformar uma pergunta
+em filtros estruturados. O Pydantic valida esses filtros, e o Python
+busca os pratos no catálogo fictício.
+
+### Configuração
+
+Copie `.env.example` para `.env` e preencha `GEMINI_API_KEY`
+com sua chave do Google AI Studio.
+
+O modelo utilizado é `gemini-3.1-flash-lite`.
+A disponibilidade e as cotas dependem da conta do provedor.
+
+### Exemplo de requisição
+
+POST /consultar
+
+```json
+{
+  "pergunta": "Quero algo vegetariano até 35 reais, sem queijo"
+}
+```
+
+### Limitações da interpretação
+
+- Pode interpretar perguntas incorretamente.
+- Permite excluir apenas um ingrediente por consulta.
+- Não possui um filtro específico para pratos veganos.
+- Depende da disponibilidade da API externa.
+- A validação estrutural não garante que a interpretação esteja correta.
