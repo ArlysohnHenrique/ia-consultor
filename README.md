@@ -136,6 +136,24 @@ POST /consultar
 }
 ```
 
+### Consulta por áudio
+
+A rota `POST /consultar-audio` recebe o áudio direto no corpo da
+requisição (WAV, MP3, OGG, AAC, AIFF ou FLAC, até 5 MB). O Gemini
+transcreve a fala e extrai os filtros numa única chamada; a resposta
+inclui o campo `transcricao`.
+
+```powershell
+curl.exe -X POST http://127.0.0.1:8000/consultar-audio `
+  -H "Content-Type: audio/wav" --data-binary "@pedido.wav"
+```
+
+### Chat para testes
+
+Com a API rodando, acesse http://127.0.0.1:8000/chat para conversar
+com o assistente por texto ou áudio (botão do microfone). O navegador
+converte a gravação para WAV antes de enviar.
+
 ### Limitações da interpretação
 
 - Pode interpretar perguntas incorretamente.

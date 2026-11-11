@@ -1,13 +1,21 @@
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, RedirectResponse
 from google.genai import errors
 from pydantic import BaseModel, Field, ValidationError
 
 from config import ConfiguracaoAusenteError
 from filtros import buscar_pratos
-from interpretador import RespostaVaziaError, interpretar_pergunta
+from interpretador import (
+    FiltrosBusca,
+    RespostaVaziaError,
+    interpretar_audio,
+    interpretar_pergunta,
+)
 
 app = FastAPI(
     title="Assistente de Cardápio",
@@ -17,6 +25,21 @@ app = FastAPI(
 
 PAGINA_CHAT = Path(__file__).with_name("static") / "chat.html"
 
+TAMANHO_MAXIMO_AUDIO = 5 * 1024 * 1024  # 5 MB, cerca de 2 min de WAV 16 kHz mono
+
+# Formatos de áudio aceitos pelo Gemini, com os apelidos usados pelos navegadores.
+FORMATOS_AUDIO = {
+    "audio/wav": "audio/wav",
+    "audio/wave": "audio/wav",
+    "audio/x-wav": "audio/wav",
+    "audio/mp3": "audio/mp3",
+    "audio/mpeg": "audio/mp3",
+    "audio/aiff": "audio/aiff",
+    "audio/aac": "audio/aac",
+    "audio/ogg": "audio/ogg",
+    "audio/flac": "audio/flac",
+}
+
 
 @app.get("/", include_in_schema=False)
 def raiz():
@@ -25,7 +48,7 @@ def raiz():
 
 @app.get("/chat", include_in_schema=False)
 def chat():
-    """Interface de chat para testar a rota /consultar no navegador."""
+    """Interface de chat para testar as rotas de consulta no navegador."""
     return FileResponse(PAGINA_CHAT, media_type="text/html")
 
 
@@ -51,18 +74,11 @@ class ConsultaIA(BaseModel):
     pergunta: str = Field(min_length=1, max_length=500)
 
 
-@app.post("/consultar")
-def consultar_com_ia(consulta: ConsultaIA):
-    pergunta = consulta.pergunta.strip()
-
-    if not pergunta:
-        raise HTTPException(
-            status_code=422,
-            detail="Informe uma pergunta.",
-        )
-
+@contextmanager
+def erros_da_ia() -> Iterator[None]:
+    """Converte falhas da integração com a IA em respostas HTTP."""
     try:
-        filtros = interpretar_pergunta(pergunta)
+        yield
     except ConfiguracaoAusenteError as erro:
         raise HTTPException(
             status_code=500,
@@ -86,6 +102,8 @@ def consultar_com_ia(consulta: ConsultaIA):
             detail="A IA retornou filtros inválidos.",
         ) from erro
 
+
+def resultado_da_busca(filtros: FiltrosBusca) -> dict:
     pratos = buscar_pratos(
         preco_maximo=filtros.preco_maximo,
         apenas_vegetarianos=filtros.apenas_vegetarianos,
@@ -96,4 +114,66 @@ def consultar_com_ia(consulta: ConsultaIA):
         "filtros": filtros.model_dump(),
         "quantidade": len(pratos),
         "pratos": pratos,
+    }
+
+
+@app.post("/consultar")
+def consultar_com_ia(consulta: ConsultaIA):
+    pergunta = consulta.pergunta.strip()
+
+    if not pergunta:
+        raise HTTPException(
+            status_code=422,
+            detail="Informe uma pergunta.",
+        )
+
+    with erros_da_ia():
+        filtros = interpretar_pergunta(pergunta)
+
+    return resultado_da_busca(filtros)
+
+
+@app.post(
+    "/consultar-audio",
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                formato: {"schema": {"type": "string", "format": "binary"}}
+                for formato in sorted(set(FORMATOS_AUDIO.values()))
+            },
+        }
+    },
+)
+async def consultar_por_audio(request: Request):
+    """Recebe o áudio no corpo da requisição (ex.: Content-Type: audio/wav)."""
+    tipo = request.headers.get("content-type", "").split(";")[0].strip().lower()
+    formato = FORMATOS_AUDIO.get(tipo)
+
+    if formato is None:
+        raise HTTPException(
+            status_code=415,
+            detail="Formato de áudio não suportado. Envie WAV, MP3, OGG, AAC, AIFF ou FLAC.",
+        )
+
+    audio = await request.body()
+
+    if not audio:
+        raise HTTPException(status_code=422, detail="O áudio está vazio.")
+
+    if len(audio) > TAMANHO_MAXIMO_AUDIO:
+        raise HTTPException(status_code=413, detail="O áudio é muito longo.")
+
+    with erros_da_ia():
+        interpretacao = await run_in_threadpool(interpretar_audio, audio, formato)
+
+    if not interpretacao.transcricao.strip():
+        raise HTTPException(
+            status_code=422,
+            detail="Não consegui entender o áudio. Tente falar mais perto do microfone.",
+        )
+
+    return {
+        "transcricao": interpretacao.transcricao,
+        **resultado_da_busca(interpretacao.filtros),
     }

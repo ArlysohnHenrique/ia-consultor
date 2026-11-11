@@ -246,6 +246,52 @@
     }
 
     form button:disabled { opacity: 0.5; cursor: default; }
+    form button[hidden], form input[hidden] { display: none; }
+
+    .gravacao {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 6px;
+      font-size: 15px;
+      color: var(--texto-suave);
+    }
+
+    .gravacao[hidden] { display: none; }
+
+    .gravacao .ponto {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #f15c6d;
+      animation: piscar 1s infinite;
+    }
+
+    .gravacao .dica { margin-left: auto; font-size: 13px; }
+
+    @keyframes piscar { 50% { opacity: 0.2; } }
+
+    form button.descartar {
+      background: transparent;
+      color: var(--texto-suave);
+      width: 36px;
+    }
+
+    .bolha audio {
+      display: block;
+      width: 240px;
+      max-width: 100%;
+      height: 36px;
+    }
+
+    .transcricao {
+      font-size: 13px;
+      font-style: italic;
+      color: var(--texto-suave);
+      margin-top: 4px;
+    }
   </style>
 </head>
 <body>
@@ -270,9 +316,26 @@
 
     <form id="formulario" autocomplete="off">
       <input id="campo" maxlength="500" placeholder="Digite uma mensagem" aria-label="Mensagem">
-      <button id="enviar" type="submit" aria-label="Enviar">
+
+      <div id="gravacao" class="gravacao" hidden>
+        <button id="descartar" type="button" class="descartar" aria-label="Descartar áudio">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+          </svg>
+        </button>
+        <span class="ponto" aria-hidden="true"></span>
+        <span id="cronometro">0:00</span>
+        <span class="dica">Gravando…</span>
+      </div>
+
+      <button id="enviar" type="submit" aria-label="Enviar" hidden>
         <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
           <path d="M2 21l21-9L2 3v7l15 2-15 2z"/>
+        </svg>
+      </button>
+      <button id="microfone" type="button" aria-label="Gravar áudio">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/>
         </svg>
       </button>
     </form>
@@ -283,8 +346,18 @@
     const formulario = document.getElementById("formulario");
     const campo = document.getElementById("campo");
     const botaoEnviar = document.getElementById("enviar");
+    const botaoMicrofone = document.getElementById("microfone");
+    const botaoDescartar = document.getElementById("descartar");
+    const painelGravacao = document.getElementById("gravacao");
+    const cronometro = document.getElementById("cronometro");
     const status = document.getElementById("status");
     const sugestoes = document.getElementById("sugestoes");
+
+    const DURACAO_MAXIMA_AUDIO_S = 60;
+    const TAXA_AMOSTRAGEM_WAV = 16000;
+
+    let ocupado = false;
+    let gravacao = null; // { gravador, trechos, stream, inicio, intervalo }
 
     const moeda = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -378,45 +451,206 @@
       return `Algo deu errado (erro ${resposta.status}). Tente novamente.`;
     }
 
-    async function enviarPergunta(pergunta) {
-      mensagemTexto("usuario", pergunta);
+    // Envia a requisição, mostra "digitando…" e devolve os dados em caso de sucesso.
+    async function consultarApi(url, opcoes) {
+      ocupado = true;
       sugestoes.hidden = true;
-      botaoEnviar.disabled = true;
+      atualizarBotoes();
       const esconderDigitando = mostrarDigitando();
 
       try {
-        const resposta = await fetch("/consultar", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ pergunta }),
-        });
+        const resposta = await fetch(url, { method: "POST", ...opcoes });
         const dados = await resposta.json().catch(() => null);
         esconderDigitando();
 
-        if (resposta.ok) {
-          mensagemResultado(dados);
-        } else {
+        if (!resposta.ok) {
           mensagemTexto("bot", textoDoErro(dados, resposta), "erro");
+          return null;
         }
+        return dados;
       } catch {
         esconderDigitando();
         mensagemTexto("bot", "Não consegui falar com o servidor. Ele está rodando?", "erro");
+        return null;
       } finally {
-        botaoEnviar.disabled = false;
+        ocupado = false;
+        atualizarBotoes();
         campo.focus();
       }
     }
 
+    async function enviarPergunta(pergunta) {
+      mensagemTexto("usuario", pergunta);
+
+      const dados = await consultarApi("/consultar", {
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pergunta }),
+      });
+
+      if (dados) mensagemResultado(dados);
+    }
+
+    async function enviarAudio(wav) {
+      const bolha = criarBolha("usuario");
+      const player = document.createElement("audio");
+      player.controls = true;
+      player.src = URL.createObjectURL(wav);
+      bolha.appendChild(player);
+      adicionarMeta(bolha, true);
+      rolarParaFim();
+
+      const dados = await consultarApi("/consultar-audio", {
+        headers: { "Content-Type": "audio/wav" },
+        body: wav,
+      });
+
+      if (!dados) return;
+
+      const transcricao = document.createElement("div");
+      transcricao.className = "transcricao";
+      transcricao.textContent = `“${dados.transcricao}”`;
+      bolha.insertBefore(transcricao, bolha.querySelector(".meta"));
+      mensagemResultado(dados);
+    }
+
+    // ---------- Gravação de áudio ----------
+
+    function atualizarBotoes() {
+      const gravando = gravacao !== null;
+      const temTexto = campo.value.trim() !== "";
+
+      campo.hidden = gravando;
+      painelGravacao.hidden = !gravando;
+      botaoEnviar.hidden = !gravando && !temTexto;
+      botaoMicrofone.hidden = gravando || temTexto;
+      botaoEnviar.disabled = ocupado;
+      botaoMicrofone.disabled = ocupado;
+    }
+
+    function formatarDuracao(segundos) {
+      const s = Math.floor(segundos);
+      return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+    }
+
+    async function iniciarGravacao() {
+      if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+        mensagemTexto("bot", "Este navegador não permite gravar áudio.", "erro");
+        return;
+      }
+
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch {
+        mensagemTexto("bot", "Não consegui acessar o microfone. Verifique a permissão do navegador.", "erro");
+        return;
+      }
+
+      const gravador = new MediaRecorder(stream);
+      const trechos = [];
+      gravador.addEventListener("dataavailable", (evento) => trechos.push(evento.data));
+      gravador.start();
+
+      const inicio = Date.now();
+      cronometro.textContent = "0:00";
+      const intervalo = setInterval(() => {
+        const decorrido = (Date.now() - inicio) / 1000;
+        cronometro.textContent = formatarDuracao(decorrido);
+        if (decorrido >= DURACAO_MAXIMA_AUDIO_S) finalizarGravacao(true);
+      }, 250);
+
+      gravacao = { gravador, trechos, stream, intervalo };
+      atualizarBotoes();
+    }
+
+    // Para a gravação; se `enviar` for true, converte para WAV e envia.
+    async function finalizarGravacao(enviar) {
+      if (!gravacao) return;
+      const { gravador, trechos, stream, intervalo } = gravacao;
+      gravacao = null;
+      clearInterval(intervalo);
+
+      const parado = new Promise((resolver) => gravador.addEventListener("stop", resolver, { once: true }));
+      gravador.stop();
+      await parado;
+      stream.getTracks().forEach((faixa) => faixa.stop());
+      atualizarBotoes();
+
+      if (!enviar) return;
+
+      try {
+        const original = new Blob(trechos, { type: gravador.mimeType });
+        enviarAudio(await converterParaWav(original));
+      } catch {
+        mensagemTexto("bot", "Não consegui processar o áudio gravado.", "erro");
+      }
+    }
+
+    // O Gemini não aceita WebM (formato do Chrome), então convertemos para WAV 16 kHz mono.
+    async function converterParaWav(blob) {
+      const contexto = new AudioContext();
+      const decodificado = await contexto.decodeAudioData(await blob.arrayBuffer());
+      await contexto.close();
+
+      const totalAmostras = Math.ceil(decodificado.duration * TAXA_AMOSTRAGEM_WAV);
+      const offline = new OfflineAudioContext(1, totalAmostras, TAXA_AMOSTRAGEM_WAV);
+      const fonte = offline.createBufferSource();
+      fonte.buffer = decodificado;
+      fonte.connect(offline.destination);
+      fonte.start();
+      const amostras = (await offline.startRendering()).getChannelData(0);
+
+      const buffer = new ArrayBuffer(44 + amostras.length * 2);
+      const visao = new DataView(buffer);
+      const escrever = (posicao, texto) =>
+        [...texto].forEach((letra, i) => visao.setUint8(posicao + i, letra.charCodeAt(0)));
+
+      escrever(0, "RIFF");
+      visao.setUint32(4, 36 + amostras.length * 2, true);
+      escrever(8, "WAVE");
+      escrever(12, "fmt ");
+      visao.setUint32(16, 16, true);                       // tamanho do bloco fmt
+      visao.setUint16(20, 1, true);                        // PCM
+      visao.setUint16(22, 1, true);                        // mono
+      visao.setUint32(24, TAXA_AMOSTRAGEM_WAV, true);
+      visao.setUint32(28, TAXA_AMOSTRAGEM_WAV * 2, true);  // bytes por segundo
+      visao.setUint16(32, 2, true);                        // bytes por amostra
+      visao.setUint16(34, 16, true);                       // bits por amostra
+      escrever(36, "data");
+      visao.setUint32(40, amostras.length * 2, true);
+
+      amostras.forEach((amostra, i) => {
+        const limitada = Math.max(-1, Math.min(1, amostra));
+        visao.setInt16(44 + i * 2, limitada < 0 ? limitada * 0x8000 : limitada * 0x7fff, true);
+      });
+
+      return new Blob([buffer], { type: "audio/wav" });
+    }
+
+    // ---------- Eventos ----------
+
     formulario.addEventListener("submit", (evento) => {
       evento.preventDefault();
+      if (ocupado) return;
+
+      if (gravacao) {
+        finalizarGravacao(true);
+        return;
+      }
+
       const pergunta = campo.value.trim();
-      if (!pergunta || botaoEnviar.disabled) return;
+      if (!pergunta) return;
       campo.value = "";
+      atualizarBotoes();
       enviarPergunta(pergunta);
     });
 
+    campo.addEventListener("input", atualizarBotoes);
+    botaoMicrofone.addEventListener("click", () => { if (!ocupado) iniciarGravacao(); });
+    botaoDescartar.addEventListener("click", () => finalizarGravacao(false));
+
     sugestoes.addEventListener("click", (evento) => {
-      if (evento.target.tagName === "BUTTON" && !botaoEnviar.disabled) {
+      if (evento.target.tagName === "BUTTON" && !ocupado && !gravacao) {
         enviarPergunta(evento.target.textContent);
       }
     });
