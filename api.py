@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -22,6 +23,8 @@ app = FastAPI(
     description="API para consultar um cardápio fictício.",
     version="0.1.0",
 )
+
+logger = logging.getLogger("uvicorn.error")
 
 PAGINA_CHAT = Path(__file__).with_name("static") / "chat.html"
 
@@ -52,7 +55,7 @@ def chat():
     return FileResponse(PAGINA_CHAT, media_type="text/html")
 
 
-@app.get("/pratos")
+@app.get("/pratos", tags=["Cardápio"], summary="Listar pratos com filtros")
 def listar_pratos(
     preco_maximo: float | None = Query(default=None, ge=0),
     apenas_vegetarianos: bool = False,
@@ -85,6 +88,7 @@ def erros_da_ia() -> Iterator[None]:
             detail="O serviço de IA não está configurado no servidor.",
         ) from erro
     except errors.APIError as erro:
+        logger.warning("Falha na API do Gemini (%s): %s", erro.code, erro.message)
         status = 503 if erro.code in (429, 503) else 502
 
         raise HTTPException(
@@ -117,7 +121,7 @@ def resultado_da_busca(filtros: FiltrosBusca) -> dict:
     }
 
 
-@app.post("/consultar")
+@app.post("/consultar", tags=["Consulta com IA"], summary="Consultar por texto")
 def consultar_com_ia(consulta: ConsultaIA):
     pergunta = consulta.pergunta.strip()
 
@@ -135,6 +139,8 @@ def consultar_com_ia(consulta: ConsultaIA):
 
 @app.post(
     "/consultar-audio",
+    tags=["Consulta com IA"],
+    summary="Consultar por áudio",
     openapi_extra={
         "requestBody": {
             "required": True,
