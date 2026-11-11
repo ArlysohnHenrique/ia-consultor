@@ -2,9 +2,9 @@ from fastapi import FastAPI, HTTPException, Query
 from google.genai import errors
 from pydantic import BaseModel, Field, ValidationError
 
-from dados import cardapio
+from config import ConfiguracaoAusenteError
 from filtros import buscar_pratos
-from interpretador import interpretar_pergunta
+from interpretador import RespostaVaziaError, interpretar_pergunta
 
 app = FastAPI(
     title="Assistente de Cardápio",
@@ -15,7 +15,7 @@ app = FastAPI(
 
 @app.get("/pratos")
 def listar_pratos(
-    preco_maximo: float = Query(default=100, ge=0),
+    preco_maximo: float | None = Query(default=None, ge=0),
     apenas_vegetarianos: bool = False,
     ingrediente_excluido: str = "",
 ):
@@ -29,6 +29,7 @@ def listar_pratos(
         "quantidade": len(pratos),
         "pratos": pratos,
     }
+
 
 class ConsultaIA(BaseModel):
     pergunta: str = Field(min_length=1, max_length=500)
@@ -46,6 +47,11 @@ def consultar_com_ia(consulta: ConsultaIA):
 
     try:
         filtros = interpretar_pergunta(pergunta)
+    except ConfiguracaoAusenteError as erro:
+        raise HTTPException(
+            status_code=500,
+            detail="O serviço de IA não está configurado no servidor.",
+        ) from erro
     except errors.APIError as erro:
         status = 503 if erro.code in (429, 503) else 502
 
@@ -53,27 +59,19 @@ def consultar_com_ia(consulta: ConsultaIA):
             status_code=status,
             detail="O serviço de IA não conseguiu responder. Tente novamente mais tarde.",
         ) from erro
+    except RespostaVaziaError as erro:
+        raise HTTPException(
+            status_code=502,
+            detail="A IA não retornou uma resposta.",
+        ) from erro
     except ValidationError as erro:
         raise HTTPException(
             status_code=502,
             detail="A IA retornou filtros inválidos.",
         ) from erro
-    except ValueError as erro:
-        raise HTTPException(
-            status_code=500,
-            detail="Não foi possível concluir a interpretação da pergunta.",
-        ) from erro
-
-    preco_maximo = filtros.preco_maximo
-
-    if preco_maximo is None:
-        preco_maximo = max(
-            (prato["preco"] for prato in cardapio),
-            default=0,
-        )
 
     pratos = buscar_pratos(
-        preco_maximo=preco_maximo,
+        preco_maximo=filtros.preco_maximo,
         apenas_vegetarianos=filtros.apenas_vegetarianos,
         ingrediente_excluido=filtros.ingrediente_excluido,
     )

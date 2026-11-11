@@ -36,6 +36,22 @@ class TestBuscarPratos(unittest.TestCase):
 
         self.assertEqual(pratos, [])
 
+    def test_sem_preco_maximo_nao_limita_preco(self):
+        pratos = buscar_pratos()
+
+        ids = {prato["id"] for prato in pratos}
+
+        self.assertEqual(ids, {1, 2, 3, 4, 5})
+
+    def test_aceita_cardapio_customizado(self):
+        cardapio = [
+            {"id": 99, "preco": 5, "vegetariano": True, "ingredientes": ["pão"]},
+        ]
+
+        pratos = buscar_pratos(preco_maximo=10, cardapio=cardapio)
+
+        self.assertEqual([prato["id"] for prato in pratos], [99])
+
 
 if __name__ == "__main__":
     unittest.main()

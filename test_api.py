@@ -4,7 +4,8 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from api import app
-from interpretador import FiltrosBusca
+from config import ConfiguracaoAusenteError
+from interpretador import FiltrosBusca, RespostaVaziaError
 
 
 class TestConsultaIA(unittest.TestCase):
@@ -69,6 +70,28 @@ class TestConsultaIA(unittest.TestCase):
         }
 
         self.assertEqual(ids, {1, 2, 3, 5})
+
+    @patch("api.interpretar_pergunta")
+    def test_chave_ausente_retorna_500(self, interpretar_mock):
+        interpretar_mock.side_effect = ConfiguracaoAusenteError("sem chave")
+
+        resposta = self.cliente.post("/consultar", json={"pergunta": "oi"})
+
+        self.assertEqual(resposta.status_code, 500)
+
+    @patch("api.interpretar_pergunta")
+    def test_resposta_vazia_da_ia_retorna_502(self, interpretar_mock):
+        interpretar_mock.side_effect = RespostaVaziaError("vazio")
+
+        resposta = self.cliente.post("/consultar", json={"pergunta": "oi"})
+
+        self.assertEqual(resposta.status_code, 502)
+
+    def test_listar_pratos_sem_preco_retorna_todos(self):
+        resposta = self.cliente.get("/pratos")
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertEqual(resposta.json()["quantidade"], 5)
 
 
 if __name__ == "__main__":
