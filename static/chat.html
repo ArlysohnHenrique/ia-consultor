@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Assistente de Cardápio — Chat</title>
+  <style>
+    :root {
+      --header: #075e54;
+      --header-texto: #ffffff;
+      --fundo: #efeae2;
+      --padrao: rgba(0, 0, 0, 0.035);
+      --bolha-usuario: #d9fdd3;
+      --bolha-bot: #ffffff;
+      --texto: #111b21;
+      --texto-suave: #667781;
+      --check: #53bdeb;
+      --rodape: #f0f2f5;
+      --campo: #ffffff;
+      --botao: #00a884;
+      --erro: #fde8e8;
+      --sombra: 0 1px 0.5px rgba(11, 20, 26, 0.13);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --header: #202c33;
+        --header-texto: #e9edef;
+        --fundo: #0b141a;
+        --padrao: rgba(255, 255, 255, 0.025);
+        --bolha-usuario: #005c4b;
+        --bolha-bot: #202c33;
+        --texto: #e9edef;
+        --texto-suave: #8696a0;
+        --rodape: #202c33;
+        --campo: #2a3942;
+        --erro: #4a2326;
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+    }
+
+    body {
+      font-family: "Segoe UI", Helvetica, Arial, sans-serif;
+      background: #d1d7db;
+      color: var(--texto);
+      display: flex;
+      justify-content: center;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      body { background: #111b21; }
+    }
+
+    .app {
+      width: 100%;
+      max-width: 520px;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      background-color: var(--fundo);
+      background-image:
+        radial-gradient(var(--padrao) 1.5px, transparent 1.5px),
+        radial-gradient(var(--padrao) 1.5px, transparent 1.5px);
+      background-size: 28px 28px;
+      background-position: 0 0, 14px 14px;
+      box-shadow: 0 0 24px rgba(0, 0, 0, 0.15);
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      background: var(--header);
+      color: var(--header-texto);
+    }
+
+    .avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: #25d366;
+      display: grid;
+      place-items: center;
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+
+    .contato strong { display: block; font-size: 16px; font-weight: 500; }
+    .contato span { font-size: 13px; opacity: 0.8; }
+
+    #mensagens {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .data {
+      align-self: center;
+      background: var(--bolha-bot);
+      color: var(--texto-suave);
+      font-size: 12px;
+      padding: 5px 12px;
+      border-radius: 8px;
+      margin: 6px 0 10px;
+      box-shadow: var(--sombra);
+    }
+
+    .bolha {
+      max-width: 85%;
+      padding: 6px 9px 8px;
+      border-radius: 8px;
+      font-size: 14.5px;
+      line-height: 1.4;
+      box-shadow: var(--sombra);
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      position: relative;
+      margin-top: 4px;
+    }
+
+    .bolha.usuario {
+      align-self: flex-end;
+      background: var(--bolha-usuario);
+      border-top-right-radius: 0;
+    }
+
+    .bolha.bot {
+      align-self: flex-start;
+      background: var(--bolha-bot);
+      border-top-left-radius: 0;
+    }
+
+    .bolha.erro { background: var(--erro); }
+
+    .meta {
+      float: right;
+      margin: 6px 0 -4px 10px;
+      font-size: 11px;
+      color: var(--texto-suave);
+      white-space: nowrap;
+    }
+
+    .meta .checks { color: var(--check); margin-left: 3px; }
+
+    .prato {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 3px 0;
+      border-bottom: 1px dashed rgba(127, 127, 127, 0.25);
+    }
+
+    .prato:last-of-type { border-bottom: none; }
+    .prato span:last-child { font-weight: 600; white-space: nowrap; }
+
+    .filtros {
+      font-size: 12.5px;
+      color: var(--texto-suave);
+      margin-bottom: 6px;
+    }
+
+    .digitando {
+      display: inline-flex;
+      gap: 4px;
+      padding: 4px 2px;
+    }
+
+    .digitando i {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--texto-suave);
+      animation: pulo 1.2s infinite ease-in-out;
+    }
+
+    .digitando i:nth-child(2) { animation-delay: 0.15s; }
+    .digitando i:nth-child(3) { animation-delay: 0.3s; }
+
+    @keyframes pulo {
+      0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+      30% { transform: translateY(-4px); opacity: 1; }
+    }
+
+    .sugestoes {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 0 16px 8px;
+    }
+
+    .sugestoes[hidden] { display: none; }
+
+    .sugestoes button {
+      border: none;
+      border-radius: 16px;
+      padding: 6px 12px;
+      font: inherit;
+      font-size: 13px;
+      background: var(--bolha-bot);
+      color: var(--texto);
+      box-shadow: var(--sombra);
+      cursor: pointer;
+    }
+
+    form {
+      display: flex;
+      gap: 8px;
+      padding: 8px 12px;
+      background: var(--rodape);
+    }
+
+    input {
+      flex: 1;
+      min-width: 0;
+      border: none;
+      border-radius: 8px;
+      padding: 11px 14px;
+      font: inherit;
+      font-size: 15px;
+      background: var(--campo);
+      color: var(--texto);
+      outline: none;
+    }
+
+    form button {
+      width: 44px;
+      height: 44px;
+      border: none;
+      border-radius: 50%;
+      background: var(--botao);
+      color: #fff;
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+    }
+
+    form button:disabled { opacity: 0.5; cursor: default; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="avatar" aria-hidden="true">🍽️</div>
+      <div class="contato">
+        <strong>Assistente de Cardápio</strong>
+        <span id="status">online</span>
+      </div>
+    </header>
+
+    <main id="mensagens" aria-live="polite">
+      <div class="data">Hoje</div>
+    </main>
+
+    <div class="sugestoes" id="sugestoes">
+      <button type="button">Algo vegetariano até 35 reais, sem queijo</button>
+      <button type="button">Quero gastar no máximo 25 reais</button>
+      <button type="button">Pratos sem frango</button>
+    </div>
+
+    <form id="formulario" autocomplete="off">
+      <input id="campo" maxlength="500" placeholder="Digite uma mensagem" aria-label="Mensagem">
+      <button id="enviar" type="submit" aria-label="Enviar">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M2 21l21-9L2 3v7l15 2-15 2z"/>
+        </svg>
+      </button>
+    </form>
+  </div>
+
+  <script>
+    const mensagens = document.getElementById("mensagens");
+    const formulario = document.getElementById("formulario");
+    const campo = document.getElementById("campo");
+    const botaoEnviar = document.getElementById("enviar");
+    const status = document.getElementById("status");
+    const sugestoes = document.getElementById("sugestoes");
+
+    const moeda = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+
+    function horaAtual() {
+      return new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    }
+
+    function criarBolha(autor) {
+      const bolha = document.createElement("div");
+      bolha.className = `bolha ${autor}`;
+      mensagens.appendChild(bolha);
+      return bolha;
+    }
+
+    function adicionarMeta(bolha, comChecks) {
+      const meta = document.createElement("span");
+      meta.className = "meta";
+      meta.textContent = horaAtual();
+      if (comChecks) {
+        const checks = document.createElement("span");
+        checks.className = "checks";
+        checks.textContent = "✓✓";
+        meta.appendChild(checks);
+      }
+      bolha.appendChild(meta);
+    }
+
+    function rolarParaFim() {
+      mensagens.scrollTop = mensagens.scrollHeight;
+    }
+
+    function mensagemTexto(autor, texto, extraClasse = "") {
+      const bolha = criarBolha(autor);
+      if (extraClasse) bolha.classList.add(extraClasse);
+      bolha.append(document.createTextNode(texto));
+      adicionarMeta(bolha, autor === "usuario");
+      rolarParaFim();
+    }
+
+    function descreverFiltros(filtros) {
+      const partes = [];
+      partes.push(filtros.preco_maximo == null ? "sem limite de preço" : `até ${moeda.format(filtros.preco_maximo)}`);
+      if (filtros.apenas_vegetarianos) partes.push("apenas vegetarianos");
+      if (filtros.ingrediente_excluido) partes.push(`sem ${filtros.ingrediente_excluido}`);
+      return `Entendi: ${partes.join(" · ")}`;
+    }
+
+    function mensagemResultado(dados) {
+      const bolha = criarBolha("bot");
+
+      const filtros = document.createElement("div");
+      filtros.className = "filtros";
+      filtros.textContent = descreverFiltros(dados.filtros);
+      bolha.appendChild(filtros);
+
+      if (dados.quantidade === 0) {
+        bolha.append(document.createTextNode("Não encontrei nenhum prato com esses filtros. 😕"));
+      } else {
+        const titulo = dados.quantidade === 1 ? "Encontrei 1 prato:" : `Encontrei ${dados.quantidade} pratos:`;
+        bolha.append(document.createTextNode(titulo + "\n"));
+        for (const prato of dados.pratos) {
+          const linha = document.createElement("div");
+          linha.className = "prato";
+          const nome = document.createElement("span");
+          nome.textContent = (prato.vegetariano ? "🌱 " : "") + prato.nome;
+          const preco = document.createElement("span");
+          preco.textContent = moeda.format(prato.preco);
+          linha.append(nome, preco);
+          bolha.appendChild(linha);
+        }
+      }
+
+      adicionarMeta(bolha, false);
+      rolarParaFim();
+    }
+
+    function mostrarDigitando() {
+      const bolha = criarBolha("bot");
+      bolha.innerHTML = '<span class="digitando"><i></i><i></i><i></i></span>';
+      status.textContent = "digitando…";
+      rolarParaFim();
+      return () => {
+        bolha.remove();
+        status.textContent = "online";
+      };
+    }
+
+    function textoDoErro(dados, resposta) {
+      if (dados && typeof dados.detail === "string") return dados.detail;
+      if (resposta.status === 422) return "Não entendi a mensagem. Tente escrever de outro jeito.";
+      return `Algo deu errado (erro ${resposta.status}). Tente novamente.`;
+    }
+
+    async function enviarPergunta(pergunta) {
+      mensagemTexto("usuario", pergunta);
+      sugestoes.hidden = true;
+      botaoEnviar.disabled = true;
+      const esconderDigitando = mostrarDigitando();
+
+      try {
+        const resposta = await fetch("/consultar", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pergunta }),
+        });
+        const dados = await resposta.json().catch(() => null);
+        esconderDigitando();
+
+        if (resposta.ok) {
+          mensagemResultado(dados);
+        } else {
+          mensagemTexto("bot", textoDoErro(dados, resposta), "erro");
+        }
+      } catch {
+        esconderDigitando();
+        mensagemTexto("bot", "Não consegui falar com o servidor. Ele está rodando?", "erro");
+      } finally {
+        botaoEnviar.disabled = false;
+        campo.focus();
+      }
+    }
+
+    formulario.addEventListener("submit", (evento) => {
+      evento.preventDefault();
+      const pergunta = campo.value.trim();
+      if (!pergunta || botaoEnviar.disabled) return;
+      campo.value = "";
+      enviarPergunta(pergunta);
+    });
+
+    sugestoes.addEventListener("click", (evento) => {
+      if (evento.target.tagName === "BUTTON" && !botaoEnviar.disabled) {
+        enviarPergunta(evento.target.textContent);
+      }
+    });
+
+    mensagemTexto(
+      "bot",
+      "Olá! 👋 Sou o assistente do cardápio.\nMe diga o que você quer comer, quanto quer gastar ou o que quer evitar."
+    );
+    campo.focus();
+  </script>
+</body>
+</html>

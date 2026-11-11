@@ -1,4 +1,7 @@
+from pathlib import Path
+
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import FileResponse, RedirectResponse
 from google.genai import errors
 from pydantic import BaseModel, Field, ValidationError
 
@@ -11,6 +14,19 @@ app = FastAPI(
     description="API para consultar um cardápio fictício.",
     version="0.1.0",
 )
+
+PAGINA_CHAT = Path(__file__).with_name("static") / "chat.html"
+
+
+@app.get("/", include_in_schema=False)
+def raiz():
+    return RedirectResponse("/chat")
+
+
+@app.get("/chat", include_in_schema=False)
+def chat():
+    """Interface de chat para testar a rota /consultar no navegador."""
+    return FileResponse(PAGINA_CHAT, media_type="text/html")
 
 
 @app.get("/pratos")

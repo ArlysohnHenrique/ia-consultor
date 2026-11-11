@@ -87,6 +87,13 @@ class TestConsultaIA(unittest.TestCase):
 
         self.assertEqual(resposta.status_code, 502)
 
+    def test_pagina_de_chat_e_servida(self):
+        resposta = self.cliente.get("/chat")
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertIn("text/html", resposta.headers["content-type"])
+        self.assertIn("/consultar", resposta.text)
+
     def test_listar_pratos_sem_preco_retorna_todos(self):
         resposta = self.cliente.get("/pratos")
 
